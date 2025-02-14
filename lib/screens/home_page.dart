@@ -11,6 +11,8 @@ import '../models/transaction.dart';
 import '../utils/transaction_utils.dart';
 import 'add_edit_transaction_screen.dart';
 
+import 'package:share_plus/share_plus.dart';
+
 class MyHomePage extends StatefulWidget {
   final String title;
   const MyHomePage({super.key, required this.title});
@@ -309,6 +311,10 @@ class _MyHomePageState extends State<MyHomePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('File saved: $filePath')),
       );
+
+      // Share the backup file via available applications (e.g. messenger)
+      await Share.shareXFiles([XFile(filePath)],
+          text: 'Резервная копия данных приложения "Планирование бюджета"');
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error saving file: $e')),
@@ -437,7 +443,8 @@ class _MyHomePageState extends State<MyHomePage> {
                   hintText: 'Фильтр отключен',
                   border: const OutlineInputBorder(),
                   isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                  contentPadding:
+                      const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.clear),
                     onPressed: () {
