@@ -19,12 +19,14 @@ class MyHomePage extends StatefulWidget {
   State<MyHomePage> createState() => _MyHomePageState();
 }
 
-/// Main screen displaying the transactions table
+/// Main screen displaying transactions in a table
 class _MyHomePageState extends State<MyHomePage> {
   List<Transaction> _transactions = [];
   List<OccurrenceOverride> _overrides = [];
   late DateTime _currentEndDate;
   final ScrollController _scrollController = ScrollController();
+  final TextEditingController _filterController = TextEditingController();
+  String _searchQuery = "";
 
   @override
   void initState() {
@@ -33,6 +35,7 @@ class _MyHomePageState extends State<MyHomePage> {
     _scrollController.addListener(_scrollListener);
     _loadData();
 
+    // For demonstration, add test transactions if list is empty
     if (_transactions.isEmpty) {
       _transactions.addAll([
         Transaction(
@@ -58,6 +61,7 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void dispose() {
     _scrollController.dispose();
+    _filterController.dispose();
     super.dispose();
   }
 
@@ -346,44 +350,61 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
     DateTime now = DateTime.now();
-    DateTime today = DateTime(now.year, now.month, now.day);
+    DateTime startRange = DateTime(now.year, now.month, now.day);
 
-    // Get all occurrences from a very early date up to today
+    // Calculate current balance (sum of all past transactions, excluding today)
     List<TransactionOccurrence> pastOccurrences = getOccurrencesInRange(
       _transactions,
       DateTime(2000, 1, 1),
-      today,
+      startRange,
       _overrides,
     );
-    // Calculate the current balance from past occurrences
     double currentBalance = 0;
     for (var occ in pastOccurrences) {
-      currentBalance += (occ.transaction.type == TransactionType.income
+      currentBalance += occ.transaction.type == TransactionType.income
           ? occ.transaction.amount
-          : -occ.transaction.amount);
+          : -occ.transaction.amount;
     }
 
-    // Get future occurrences (from today onward)
+    // Future occurrences from today onward
     List<TransactionOccurrence> futureOccurrences = getOccurrencesInRange(
       _transactions,
-      today,
+      startRange,
       _currentEndDate,
       _overrides,
     );
 
-    // Compute cumulative sums for future occurrences, starting from currentBalance
-    List<double> cumulativeSums = [];
+    // Calculate cumulative sums for future occurrences based on full data
+    List<double> fullCumulativeSums = [];
     double runningTotal = currentBalance;
     for (var occ in futureOccurrences) {
       double signedAmount = occ.transaction.type == TransactionType.income
           ? occ.transaction.amount
           : -occ.transaction.amount;
       runningTotal += signedAmount;
-      cumulativeSums.add(runningTotal);
+      fullCumulativeSums.add(runningTotal);
     }
 
-    // Total rows: 1 for "Current Balance" row + one per future occurrence
-    int totalRows = 1 + futureOccurrences.length;
+    // Pair each future occurrence with its cumulative sum
+    List<MapEntry<TransactionOccurrence, double>> fullEntries = [];
+    for (int i = 0; i < futureOccurrences.length; i++) {
+      fullEntries.add(MapEntry(futureOccurrences[i], fullCumulativeSums[i]));
+    }
+
+    // Filter entries based on _searchQuery (case-insensitive) on transaction name
+    List<MapEntry<TransactionOccurrence, double>> filteredEntries;
+    if (_searchQuery.isEmpty) {
+      filteredEntries = fullEntries;
+    } else {
+      filteredEntries = fullEntries
+          .where((entry) => entry.key.transaction.name
+              .toLowerCase()
+              .contains(_searchQuery.toLowerCase()))
+          .toList();
+    }
+
+    // Total rows: 1 for current balance + filtered future occurrences
+    int totalRows = 1 + filteredEntries.length;
 
     return Scaffold(
       appBar: AppBar(
@@ -404,6 +425,37 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
       body: Column(
         children: [
+          // Search field for filtering by transaction name
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Container(
+              height: 48,
+              child: TextField(
+                controller: _filterController,
+                decoration: InputDecoration(
+                  labelText: 'Фильтр по наименованию',
+                  hintText: 'Фильтр отключен',
+                  border: const OutlineInputBorder(),
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.clear),
+                    onPressed: () {
+                      _filterController.clear();
+                      setState(() {
+                        _searchQuery = "";
+                      });
+                    },
+                  ),
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value;
+                  });
+                },
+              ),
+            ),
+          ),
           // Table header
           Container(
             color: Colors.grey[300],
@@ -412,19 +464,23 @@ class _MyHomePageState extends State<MyHomePage> {
               children: const [
                 Expanded(
                   flex: 22,
-                  child: Text('Дата', style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: Text('Дата',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
                 Expanded(
                   flex: 34,
-                  child: Text('Наименование', style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: Text('Наименование',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
                 Expanded(
                   flex: 22,
-                  child: Text('Сумма', style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: Text('Сумма',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
                 Expanded(
                   flex: 22,
-                  child: Text('Итог', style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: Text('Итог',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
@@ -437,9 +493,11 @@ class _MyHomePageState extends State<MyHomePage> {
                 if (index == 0) {
                   // "Current Balance" row
                   return Container(
-                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
                     decoration: BoxDecoration(
-                      border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+                      border: Border(
+                          bottom: BorderSide(color: Colors.grey.shade300)),
                     ),
                     child: Row(
                       children: [
@@ -457,7 +515,9 @@ class _MyHomePageState extends State<MyHomePage> {
                           child: Text(
                             currentBalance.toStringAsFixed(2),
                             style: TextStyle(
-                              color: currentBalance >= 0 ? Colors.green : Colors.red,
+                              color: currentBalance >= 0
+                                  ? Colors.green
+                                  : Colors.red,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -466,19 +526,23 @@ class _MyHomePageState extends State<MyHomePage> {
                     ),
                   );
                 } else {
-                  // Future transaction rows
-                  final occ = futureOccurrences[index - 1];
+                  final entry = filteredEntries[index - 1];
+                  final occ = entry.key;
+                  final cumSum = entry.value;
                   final dateStr = DateFormat('dd.MM.yyyy').format(occ.date);
-                  final isIncome = occ.transaction.type == TransactionType.income;
+                  final isIncome =
+                      occ.transaction.type == TransactionType.income;
                   final amountStr = occ.transaction.amount.toStringAsFixed(2);
-                  final totalStr = cumulativeSums[index - 1].toStringAsFixed(2);
+                  final totalStr = cumSum.toStringAsFixed(2);
                   return InkWell(
                     onTap: () => _editOccurrence(occ),
                     onLongPress: () => _deleteOccurrence(occ),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 6, horizontal: 4),
                       decoration: BoxDecoration(
-                        border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+                        border: Border(
+                            bottom: BorderSide(color: Colors.grey.shade300)),
                       ),
                       child: Row(
                         children: [
@@ -488,7 +552,8 @@ class _MyHomePageState extends State<MyHomePage> {
                             flex: 22,
                             child: Text(
                               amountStr,
-                              style: TextStyle(color: isIncome ? Colors.green : Colors.red),
+                              style: TextStyle(
+                                  color: isIncome ? Colors.green : Colors.red),
                             ),
                           ),
                           Expanded(
@@ -496,7 +561,9 @@ class _MyHomePageState extends State<MyHomePage> {
                             child: Text(
                               totalStr,
                               style: TextStyle(
-                                color: double.parse(totalStr) >= 0 ? Colors.green : Colors.red,
+                                color: double.parse(totalStr) >= 0
+                                    ? Colors.green
+                                    : Colors.red,
                               ),
                             ),
                           ),
