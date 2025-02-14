@@ -5,13 +5,12 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/transaction.dart';
 import '../utils/transaction_utils.dart';
 import 'add_edit_transaction_screen.dart';
-
-import 'package:share_plus/share_plus.dart';
 
 class MyHomePage extends StatefulWidget {
   final String title;
@@ -28,6 +27,7 @@ class _MyHomePageState extends State<MyHomePage> {
   late DateTime _currentEndDate;
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _filterController = TextEditingController();
+  bool _isFilterVisible = false;
   String _searchQuery = "";
 
   @override
@@ -418,6 +418,15 @@ class _MyHomePageState extends State<MyHomePage> {
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
           IconButton(
+            icon: const Icon(Icons.filter_list),
+            tooltip: 'Включить/выключить фильтр',
+            onPressed: () {
+              setState(() {
+                _isFilterVisible = !_isFilterVisible;
+              });
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.download),
             tooltip: 'Export backup',
             onPressed: _exportBackupAppSpecific,
@@ -432,37 +441,39 @@ class _MyHomePageState extends State<MyHomePage> {
       body: Column(
         children: [
           // Search field for filtering by transaction name
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Container(
-              height: 48,
-              child: TextField(
-                controller: _filterController,
-                decoration: InputDecoration(
-                  labelText: 'Фильтр по наименованию',
-                  hintText: 'Фильтр отключен',
-                  border: const OutlineInputBorder(),
-                  isDense: true,
-                  contentPadding:
-                      const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.clear),
-                    onPressed: () {
-                      _filterController.clear();
-                      setState(() {
-                        _searchQuery = "";
-                      });
-                    },
+          // Visible only if _isFilterVisible is true
+          if (_isFilterVisible)
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Container(
+                height: 48, // Reduced height (approximately 20% less)
+                child: TextField(
+                  controller: _filterController,
+                  decoration: InputDecoration(
+                    labelText: 'Фильтр по наименованию',
+                    hintText: 'Фильтр отключен',
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                    contentPadding:
+                        const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _filterController.clear();
+                        setState(() {
+                          _searchQuery = "";
+                        });
+                      },
+                    ),
                   ),
+                  onChanged: (value) {
+                    setState(() {
+                      _searchQuery = value;
+                    });
+                  },
                 ),
-                onChanged: (value) {
-                  setState(() {
-                    _searchQuery = value;
-                  });
-                },
               ),
             ),
-          ),
           // Table header
           Container(
             color: Colors.grey[300],
