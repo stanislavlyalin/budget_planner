@@ -346,19 +346,44 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
     DateTime now = DateTime.now();
-    DateTime startRange = DateTime(now.year, now.month, now.day);
-    List<TransactionOccurrence> occurrences = getOccurrencesInRange(
-        _transactions, startRange, _currentEndDate, _overrides);
+    DateTime today = DateTime(now.year, now.month, now.day);
 
+    // Get all occurrences from a very early date up to today
+    List<TransactionOccurrence> pastOccurrences = getOccurrencesInRange(
+      _transactions,
+      DateTime(2000, 1, 1),
+      today,
+      _overrides,
+    );
+    // Calculate the current balance from past occurrences
+    double currentBalance = 0;
+    for (var occ in pastOccurrences) {
+      currentBalance += (occ.transaction.type == TransactionType.income
+          ? occ.transaction.amount
+          : -occ.transaction.amount);
+    }
+
+    // Get future occurrences (from today onward)
+    List<TransactionOccurrence> futureOccurrences = getOccurrencesInRange(
+      _transactions,
+      today,
+      _currentEndDate,
+      _overrides,
+    );
+
+    // Compute cumulative sums for future occurrences, starting from currentBalance
     List<double> cumulativeSums = [];
-    double runningTotal = 0;
-    for (var occ in occurrences) {
+    double runningTotal = currentBalance;
+    for (var occ in futureOccurrences) {
       double signedAmount = occ.transaction.type == TransactionType.income
           ? occ.transaction.amount
           : -occ.transaction.amount;
       runningTotal += signedAmount;
       cumulativeSums.add(runningTotal);
     }
+
+    // Total rows: 1 for "Current Balance" row + one per future occurrence
+    int totalRows = 1 + futureOccurrences.length;
 
     return Scaffold(
       appBar: AppBar(
@@ -379,6 +404,7 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
       body: Column(
         children: [
+          // Table header
           Container(
             color: Colors.grey[300],
             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
@@ -386,23 +412,19 @@ class _MyHomePageState extends State<MyHomePage> {
               children: const [
                 Expanded(
                   flex: 22,
-                  child: Text('Дата',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: Text('Дата', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
                 Expanded(
                   flex: 34,
-                  child: Text('Наименование',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: Text('Наименование', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
                 Expanded(
                   flex: 22,
-                  child: Text('Сумма',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: Text('Сумма', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
                 Expanded(
                   flex: 22,
-                  child: Text('Итог',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: Text('Итог', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
@@ -410,50 +432,79 @@ class _MyHomePageState extends State<MyHomePage> {
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
-              itemCount: occurrences.length,
+              itemCount: totalRows,
               itemBuilder: (context, index) {
-                final occ = occurrences[index];
-                final dateStr = DateFormat('dd.MM.yyyy').format(occ.date);
-                final isIncome = occ.transaction.type == TransactionType.income;
-                final amountStr = occ.transaction.amount.toStringAsFixed(2);
-                final totalStr = cumulativeSums[index].toStringAsFixed(2);
-                return InkWell(
-                  onTap: () => _editOccurrence(occ),
-                  onLongPress: () => _deleteOccurrence(occ),
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                if (index == 0) {
+                  // "Current Balance" row
+                  return Container(
+                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
                     decoration: BoxDecoration(
-                      border: Border(
-                          bottom: BorderSide(color: Colors.grey.shade300)),
+                      border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
                     ),
                     child: Row(
                       children: [
-                        Expanded(flex: 22, child: Text(dateStr)),
-                        Expanded(flex: 34, child: Text(occ.transaction.name)),
-                        Expanded(
+                        const Expanded(
                           flex: 22,
                           child: Text(
-                            amountStr,
-                            style: TextStyle(
-                                color: isIncome ? Colors.green : Colors.red),
+                            'На текущий момент',
+                            style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ),
+                        const Expanded(flex: 34, child: Text('')),
+                        const Expanded(flex: 22, child: Text('')),
                         Expanded(
                           flex: 22,
                           child: Text(
-                            totalStr,
+                            currentBalance.toStringAsFixed(2),
                             style: TextStyle(
-                              color: double.parse(totalStr) >= 0
-                                  ? Colors.green
-                                  : Colors.red,
+                              color: currentBalance >= 0 ? Colors.green : Colors.red,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
                       ],
                     ),
-                  ),
-                );
+                  );
+                } else {
+                  // Future transaction rows
+                  final occ = futureOccurrences[index - 1];
+                  final dateStr = DateFormat('dd.MM.yyyy').format(occ.date);
+                  final isIncome = occ.transaction.type == TransactionType.income;
+                  final amountStr = occ.transaction.amount.toStringAsFixed(2);
+                  final totalStr = cumulativeSums[index - 1].toStringAsFixed(2);
+                  return InkWell(
+                    onTap: () => _editOccurrence(occ),
+                    onLongPress: () => _deleteOccurrence(occ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                      decoration: BoxDecoration(
+                        border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(flex: 22, child: Text(dateStr)),
+                          Expanded(flex: 34, child: Text(occ.transaction.name)),
+                          Expanded(
+                            flex: 22,
+                            child: Text(
+                              amountStr,
+                              style: TextStyle(color: isIncome ? Colors.green : Colors.red),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 22,
+                            child: Text(
+                              totalStr,
+                              style: TextStyle(
+                                color: double.parse(totalStr) >= 0 ? Colors.green : Colors.red,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
               },
             ),
           ),
