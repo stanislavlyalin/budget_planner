@@ -357,12 +357,13 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget build(BuildContext context) {
     DateTime now = DateTime.now();
     DateTime startRange = DateTime(now.year, now.month, now.day);
+    DateTime endRangeForPast = startRange.subtract(const Duration(microseconds: 1));
 
     // Calculate current balance (sum of all past transactions, excluding today)
     List<TransactionOccurrence> pastOccurrences = getOccurrencesInRange(
       _transactions,
       DateTime(2000, 1, 1),
-      startRange,
+      endRangeForPast,
       _overrides,
     );
     double currentBalance = 0;
