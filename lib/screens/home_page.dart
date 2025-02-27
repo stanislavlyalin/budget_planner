@@ -314,7 +314,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
       // Share the backup file via available applications (e.g. messenger)
       await Share.shareXFiles([XFile(filePath)],
-          text: 'Резервная копия данных приложения "Планирование бюджета"');
+          text: 'Резервная копия данных приложения "ПапаКопит"');
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error saving file: $e')),
