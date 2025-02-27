@@ -12,10 +12,10 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Планирование бюджета',
+      title: 'ПапаКопит',
       theme: ThemeData(
         useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
       ),
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
@@ -25,7 +25,7 @@ class MyApp extends StatelessWidget {
       supportedLocales: const [
         Locale('ru', 'RU'),
       ],
-      home: const MyHomePage(title: 'Планирование бюджета'),
+      home: const MyHomePage(title: 'ПапаКопит'),
     );
   }
 }
