@@ -413,194 +413,211 @@ class _MyHomePageState extends State<MyHomePage> {
     // Total rows: 1 for current balance + filtered future occurrences
     int totalRows = 1 + filteredEntries.length;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.filter_list),
-            tooltip: 'Включить/выключить фильтр',
-            onPressed: () {
-              setState(() {
-                _isFilterVisible = !_isFilterVisible;
-              });
-            },
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // If the content doesn't fill available height, extend _currentEndDate automatically
+        if (filteredEntries.length < 30) {
+          // Schedule expansion after the current frame to avoid setState during build
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            setState(() {
+              _currentEndDate = _currentEndDate.add(const Duration(days: 30));
+            });
+          });
+        }
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(widget.title),
+            backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.filter_list),
+                tooltip: 'Включить/выключить фильтр',
+                onPressed: () {
+                  setState(() {
+                    _isFilterVisible = !_isFilterVisible;
+                  });
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.download),
+                tooltip: 'Export backup',
+                onPressed: _exportBackupAppSpecific,
+              ),
+              IconButton(
+                icon: const Icon(Icons.upload_file),
+                tooltip: 'Import backup',
+                onPressed: _importBackup,
+              ),
+            ],
           ),
-          IconButton(
-            icon: const Icon(Icons.download),
-            tooltip: 'Export backup',
-            onPressed: _exportBackupAppSpecific,
-          ),
-          IconButton(
-            icon: const Icon(Icons.upload_file),
-            tooltip: 'Import backup',
-            onPressed: _importBackup,
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Search field for filtering by transaction name
-          // Visible only if _isFilterVisible is true
-          if (_isFilterVisible)
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Container(
-                height: 48, // Reduced height (approximately 20% less)
-                child: TextField(
-                  controller: _filterController,
-                  decoration: InputDecoration(
-                    labelText: 'Фильтр по наименованию',
-                    hintText: 'Фильтр отключен',
-                    border: const OutlineInputBorder(),
-                    isDense: true,
-                    contentPadding:
-                        const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: () {
-                        _filterController.clear();
+          body: Column(
+            children: [
+              // Search field for filtering by transaction name
+              // Visible only if _isFilterVisible is true
+              if (_isFilterVisible)
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Container(
+                    height: 48, // Reduced height (approximately 20% less)
+                    child: TextField(
+                      controller: _filterController,
+                      decoration: InputDecoration(
+                        labelText: 'Фильтр по наименованию',
+                        hintText: 'Фильтр отключен',
+                        border: const OutlineInputBorder(),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                            vertical: 8, horizontal: 12),
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _filterController.clear();
+                            setState(() {
+                              _searchQuery = "";
+                            });
+                          },
+                        ),
+                      ),
+                      onChanged: (value) {
                         setState(() {
-                          _searchQuery = "";
+                          _searchQuery = value;
                         });
                       },
                     ),
                   ),
-                  onChanged: (value) {
-                    setState(() {
-                      _searchQuery = value;
-                    });
+                ),
+              // Table header
+              Container(
+                color: Colors.grey[300],
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                child: Row(
+                  children: const [
+                    Expanded(
+                      flex: 22,
+                      child: Text('Дата',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                    Expanded(
+                      flex: 34,
+                      child: Text('Наименование',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                    Expanded(
+                      flex: 22,
+                      child: Text('Сумма',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                    Expanded(
+                      flex: 22,
+                      child: Text('Итог',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  controller: _scrollController,
+                  itemCount: totalRows,
+                  itemBuilder: (context, index) {
+                    if (index == 0) {
+                      // "Current Balance" row
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 6, horizontal: 4),
+                        decoration: BoxDecoration(
+                          border: Border(
+                              bottom: BorderSide(color: Colors.grey.shade300)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Expanded(
+                              flex: 22,
+                              child: Text(
+                                'На текущий момент',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            const Expanded(flex: 34, child: Text('')),
+                            const Expanded(flex: 22, child: Text('')),
+                            Expanded(
+                              flex: 22,
+                              child: Text(
+                                currentBalance.toStringAsFixed(2),
+                                style: TextStyle(
+                                  color: currentBalance >= 0
+                                      ? Colors.green
+                                      : Colors.red,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    } else {
+                      final entry = filteredEntries[index - 1];
+                      final occ = entry.key;
+                      final cumSum = entry.value;
+                      final dateStr = DateFormat('dd.MM.yyyy').format(occ.date);
+                      final isIncome =
+                          occ.transaction.type == TransactionType.income;
+                      final amountStr =
+                          occ.transaction.amount.toStringAsFixed(2);
+                      final totalStr = cumSum.toStringAsFixed(2);
+                      return InkWell(
+                        onTap: () => _editOccurrence(occ),
+                        onLongPress: () => _deleteOccurrence(occ),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 6, horizontal: 4),
+                          decoration: BoxDecoration(
+                            border: Border(
+                                bottom:
+                                    BorderSide(color: Colors.grey.shade300)),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(flex: 22, child: Text(dateStr)),
+                              Expanded(
+                                  flex: 34, child: Text(occ.transaction.name)),
+                              Expanded(
+                                flex: 22,
+                                child: Text(
+                                  amountStr,
+                                  style: TextStyle(
+                                      color:
+                                          isIncome ? Colors.green : Colors.red),
+                                ),
+                              ),
+                              Expanded(
+                                flex: 22,
+                                child: Text(
+                                  totalStr,
+                                  style: TextStyle(
+                                    color: double.parse(totalStr) >= 0
+                                        ? Colors.green
+                                        : Colors.red,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
                   },
                 ),
               ),
-            ),
-          // Table header
-          Container(
-            color: Colors.grey[300],
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-            child: Row(
-              children: const [
-                Expanded(
-                  flex: 22,
-                  child: Text('Дата',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
-                Expanded(
-                  flex: 34,
-                  child: Text('Наименование',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
-                Expanded(
-                  flex: 22,
-                  child: Text('Сумма',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
-                Expanded(
-                  flex: 22,
-                  child: Text('Итог',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
-              ],
-            ),
+            ],
           ),
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              itemCount: totalRows,
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  // "Current Balance" row
-                  return Container(
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-                    decoration: BoxDecoration(
-                      border: Border(
-                          bottom: BorderSide(color: Colors.grey.shade300)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Expanded(
-                          flex: 22,
-                          child: Text(
-                            'На текущий момент',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        const Expanded(flex: 34, child: Text('')),
-                        const Expanded(flex: 22, child: Text('')),
-                        Expanded(
-                          flex: 22,
-                          child: Text(
-                            currentBalance.toStringAsFixed(2),
-                            style: TextStyle(
-                              color: currentBalance >= 0
-                                  ? Colors.green
-                                  : Colors.red,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                } else {
-                  final entry = filteredEntries[index - 1];
-                  final occ = entry.key;
-                  final cumSum = entry.value;
-                  final dateStr = DateFormat('dd.MM.yyyy').format(occ.date);
-                  final isIncome =
-                      occ.transaction.type == TransactionType.income;
-                  final amountStr = occ.transaction.amount.toStringAsFixed(2);
-                  final totalStr = cumSum.toStringAsFixed(2);
-                  return InkWell(
-                    onTap: () => _editOccurrence(occ),
-                    onLongPress: () => _deleteOccurrence(occ),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 6, horizontal: 4),
-                      decoration: BoxDecoration(
-                        border: Border(
-                            bottom: BorderSide(color: Colors.grey.shade300)),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(flex: 22, child: Text(dateStr)),
-                          Expanded(flex: 34, child: Text(occ.transaction.name)),
-                          Expanded(
-                            flex: 22,
-                            child: Text(
-                              amountStr,
-                              style: TextStyle(
-                                  color: isIncome ? Colors.green : Colors.red),
-                            ),
-                          ),
-                          Expanded(
-                            flex: 22,
-                            child: Text(
-                              totalStr,
-                              style: TextStyle(
-                                color: double.parse(totalStr) >= 0
-                                    ? Colors.green
-                                    : Colors.red,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }
-              },
-            ),
+          floatingActionButton: FloatingActionButton(
+            onPressed: _addTransaction,
+            tooltip: 'Add transaction',
+            child: const Icon(Icons.add),
           ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _addTransaction,
-        tooltip: 'Add transaction',
-        child: const Icon(Icons.add),
-      ),
+        );
+      },
     );
   }
 }
